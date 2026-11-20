@@ -1,12 +1,12 @@
 # vision2pose · G1 本机仿真
 
-**浏览器摄像头或本地视频 → 3D Pose → vision2pose → MuJoCo**
+**浏览器摄像头 → 3D Pose → vision2pose → MuJoCo**
 
 **3D Pose** 从单人 RGB 画面估计上半身和手部三维姿态。**vision2pose** 以手动标定的中立姿态为参考，驱动吊挂的宇树 G1 仿真模型。模型保留完整下半身，双侧肩、肘、腕滚转和腰偏航共 11 个自由度参与物理仿真。
 
 ## 启动本机环境
 
-需要 Apple Silicon Mac 或 ARM64 Linux、Docker Compose、Python 3。把两个工作树放在同一父目录。配套 Core 版本是 [phanthymotus@ca805e8](https://github.com/zichunHU/phanthymotus/commit/ca805e88e13e201db809624ee5189b04ffb17a86)。
+需要 Apple Silicon Mac 或 ARM64 Linux、Docker Compose、Python 3。把两个工作树放在同一父目录。配套 Core 版本是 [phanthymotus@6bf7ed9](https://github.com/zichunHU/phanthymotus/commit/6bf7ed98c657444d92e2901d18e8e16e4aace097)。
 
 ```bash
 git clone --branch feat/g1-vision2pose https://github.com/zichunHU/phanthymotus.git
@@ -23,9 +23,9 @@ bash run_local.sh start
 
 1. 打开 [Motus 画布](http://127.0.0.1:15678)。添加浏览器摄像头 `remote_camera`、感知分区的 **3D Pose**，以及 **MOTUS-VISION2POSE** 下的 `vision2pose`。
 2. 将摄像头的 `image/jpeg` 连到 **3D Pose**，再将 **3D Pose** 的 `sensor/pose3d` 连到 `vision2pose`。它的另一个输出 `sensor/pose2d` 可从卡片的「查看数据流」打开。
-3. 使用本地视频时，在画布顶部点「视频输入 → 选择视频」，把预览停在一帧躯干朝前、双掌和髋部清楚可见的中立姿态。使用摄像头时，面向镜头自然站立，双手与躯干稍微分开。
-4. 开启智能控制，在 `vision2pose` 手动执行 `calibrate`，再执行 `follow`。使用视频时，随后点播放。在同一张卡点「查看数据流」可观察 G1 仿真关节反馈。
-5. 演示结束后点「停止智能控制」。切换输入后重新启动，并在新的画面上标定。
+3. 面向镜头自然站立，双手与躯干稍微分开，确保双掌和髋部清楚入镜。
+4. 开启智能控制，在 `vision2pose` 手动执行 `calibrate`，再执行 `follow`。在同一张卡点「查看数据流」可观察 G1 仿真关节反馈。
+5. 演示结束后点「停止智能控制」。
 
 ## 本机验证与接口
 

@@ -96,7 +96,7 @@ class FollowSession:
         if self.fresh(now):
             return None
         if self.capture_time is None:
-            return "还未收到姿态帧，请确认 Edge 正在提供视频或摄像头画面。"
+            return "还未收到姿态帧，请确认浏览器摄像头正在采集。"
         if not 0 <= now - self.capture_time <= MAX_FRAME_AGE:
             return "姿态帧已过期，请将 Motus 保持在前台，并确认输入画面正在传送。"
         if self.reason == "upper_body_occluded" and self.missing_keypoints:
