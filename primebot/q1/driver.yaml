@@ -1,0 +1,13 @@
+id: primebot-q1-driver
+name: 启元 Q1 探索版
+category: driver
+hardware_provider: primebot
+hardware_model: q1
+image_name: primebot-q1
+port: 15747
+mcp_url: "http://localhost:15747/mcp"
+description: 启元 Q1 探索版电池与运动模式状态
+build_context_extras:
+  - ../../common
+cards:
+  - { name: status, type: sensor }
