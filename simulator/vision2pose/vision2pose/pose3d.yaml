@@ -1,0 +1,6 @@
+name: 3D Pose
+mcp_port: 15713
+assets_dir: /vision2pose-assets
+ros:
+  robot_domain_id: 41
+  core_domain_id: 42

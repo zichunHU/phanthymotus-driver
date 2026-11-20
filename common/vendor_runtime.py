@@ -298,6 +298,8 @@ def start_registration(
     config: dict,
     driver_id: str,
     advertise_host: str = "localhost",
+    *,
+    category: str = "driver",
 ) -> None:
     import ssl
     import time
@@ -309,7 +311,7 @@ def start_registration(
         "name": config.get("name", driver_id),
         "url": f"http://{advertise_host}:{port}/mcp",
         "transport": "http",
-        "category": "driver",
+        "category": category,
     }).encode()
     context = ssl.create_default_context()
     context.check_hostname = False
@@ -354,6 +356,8 @@ def run_driver(
     driver_id: str,
     server_name: str,
     build_plugins: Callable[[dict, str, DualDomainROS2], Iterable[Any]],
+    *,
+    category: str = "driver",
 ) -> None:
     # Every driver routed through this helper gets the atomic line writer, so a
     # noisy plugin cannot tear a Docker log record. Idempotent if main.py already
@@ -377,7 +381,7 @@ def run_driver(
     ros2.start_spin()
     bundle = DriverBundle(build_plugins(config, namespace, ros2))
     bundle.start_all()
-    start_registration(port, config, driver_id)
+    start_registration(port, config, driver_id, category=category)
     server = ThreadingHTTPServer(("", port), make_handler(lambda: bundle, server_name, driver_id))
     stopping = threading.Event()
 

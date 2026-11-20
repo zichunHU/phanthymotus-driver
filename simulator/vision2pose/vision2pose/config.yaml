@@ -1,0 +1,7 @@
+name: 宇树 G1 Vision2Pose 仿真
+mcp_port: 15712
+assets_dir: /vision2pose-assets
+preview_urdf: /drivers/unitree/g1/resource/g1_23dof.urdf
+ros:
+  robot_domain_id: 41
+  core_domain_id: 42

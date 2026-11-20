@@ -1,0 +1,99 @@
+name: motus-vision2pose-demo
+
+x-core-image: &core-image bj-warehouse.tencentcloudcr.com/phanthy-motus/core:release.261118.56edda4@sha256:1e7bbd56d70fb53b8c7a9549e0dfb02a793b7f78d6495030c0ce2d0487948031
+
+x-vision-runtime: &vision-runtime
+  image: motus-vision2pose-demo:local
+  platform: linux/arm64
+  network_mode: service:core
+  ipc: service:core
+  depends_on:
+    core:
+      condition: service_healthy
+  environment: &vision-environment
+    ROS_DOMAIN_ID: "42"
+    RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    FASTRTPS_DEFAULT_PROFILES_FILE: /opt/phanthy-motus/dds-local.xml
+    AGENT_CORE_URL: http://127.0.0.1:15678
+    PYTHONPATH: /drivers:/vision2pose
+    PYTHONUNBUFFERED: "1"
+  volumes:
+    - ./vision2pose:/vision2pose/vision2pose:ro
+    - ./.runtime/assets:/vision2pose-assets:ro
+    - ../..:/drivers:ro
+    - ${PHANTHYMOTUS_CORE:?Set the Core checkout path with run_local.sh}/agent-core/deploy/dds-local.xml:/opt/phanthy-motus/dds-local.xml:ro
+  restart: "no"
+
+services:
+  core:
+    image: *core-image
+    platform: linux/arm64
+    ports:
+      - "127.0.0.1:${MOTUS_PORT:-15678}:15678"
+    ipc: shareable
+    volumes:
+      - ./.runtime/data:/work/resource
+      - ${PHANTHYMOTUS_CORE:?Set the Core checkout path with run_local.sh}/agent-core/src:/work/src:ro
+      - ${PHANTHYMOTUS_CORE:?Set the Core checkout path with run_local.sh}/agent-core/web:/work/web:ro
+      - ${PHANTHYMOTUS_CORE:?Set the Core checkout path with run_local.sh}/agent-core/tools:/work/tools:ro
+      - ${PHANTHYMOTUS_CORE:?Set the Core checkout path with run_local.sh}/agent-core/deploy/dds-local.xml:/opt/phanthy-motus/dds-local.xml:ro
+    environment:
+      ROS_DOMAIN_ID: "42"
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTRTPS_DEFAULT_PROFILES_FILE: /opt/phanthy-motus/dds-local.xml
+      DB_PATH: /work/resource/data.db
+      PYTHONUNBUFFERED: "1"
+      RCUTILS_COLORIZED_OUTPUT: "0"
+    command:
+      - /bin/bash
+      - -c
+      - source /opt/ros/humble/setup.bash && source /ros_ws/install/setup.bash && exec /work/.venv/bin/python -m uvicorn start:app --app-dir /work/src --host 0.0.0.0 --port 15678 --timeout-keep-alive 65
+    healthcheck:
+      test: ["CMD", "/work/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:15678/api/config/status', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: "no"
+
+  vision2pose:
+    <<: *vision-runtime
+    build:
+      context: .
+    command:
+      - /bin/bash
+      - -c
+      - source /opt/ros/humble/setup.bash && source /ros_ws/install/setup.bash && exec /vision2pose/.venv/bin/python -m vision2pose.service
+    healthcheck:
+      test:
+        - CMD
+        - /vision2pose/.venv/bin/python
+        - -c
+        - "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:15712/mcp',data=b'{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}',headers={'Content-Type':'application/json'}); assert json.load(urllib.request.urlopen(request,timeout=3))['result']['tools']"
+      interval: 5s
+      timeout: 4s
+      retries: 12
+
+  pose3d:
+    <<: *vision-runtime
+    environment:
+      <<: *vision-environment
+      CONFIG_PATH: /vision2pose/vision2pose/pose3d.yaml
+    command:
+      - /bin/bash
+      - -c
+      - source /opt/ros/humble/setup.bash && source /ros_ws/install/setup.bash && exec /vision2pose/.venv/bin/python -m vision2pose.perception_service
+    healthcheck:
+      test:
+        - CMD
+        - /vision2pose/.venv/bin/python
+        - -c
+        - "import json,urllib.request; request=urllib.request.Request('http://127.0.0.1:15713/mcp',data=b'{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}',headers={'Content-Type':'application/json'}); assert json.load(urllib.request.urlopen(request,timeout=3))['result']['tools'][0]['name'] == 'pose_3d'"
+      interval: 5s
+      timeout: 4s
+      retries: 12
