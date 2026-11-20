@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 from aimdk_msgs.msg import Bms
-from aimdk_msgs.srv import GetMcAction
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String
@@ -25,12 +24,6 @@ class StatusTest(unittest.TestCase):
         ros.executor_core.add_node(canvas)
         pub = vendor.create_publisher(Bms, "/aima/hal/bms/state", qos_profile_sensor_data)
 
-        def mode(request, response):
-            response.info.current_action.value = 123
-            response.info.action_desc = "test fixture"
-            return response
-
-        vendor.create_service(GetMcAction, "/aimdk_5Fmsgs/srv/GetMcAction", mode)
         frames = []
         canvas.create_subscription(String, "/test_q1/status",
                                    lambda msg: frames.append(json.loads(msg.data)), 5)
@@ -47,20 +40,19 @@ class StatusTest(unittest.TestCase):
             self.assertEqual(call("start")["topic_out"], [{"topic": "/test_q1/status", "format": "data/json"}])
             sample = Bms(remaining_capacity_percentage=73, voltage=51450, current=-260,
                          power=13377, temperature=30.25, remaining_capacity=3390,
-                         cycle_count=2, status=4)
+                         cycle_count=2, cycle_total_capacity=8625, status=4)
             deadline = time.monotonic() + 14
             while time.monotonic() < deadline:
                 pub.publish(sample)
-                if frames and all(v["state"] == "live" for v in frames[-1].values()):
+                if frames and frames[-1]["battery"]["state"] == "live":
                     break
                 time.sleep(0.1)
             self.assertTrue(frames)
             data = frames[-1]
-            self.assertEqual(data["motion"]["mode"], 123)
-            self.assertEqual(data["motion"]["description"], "test fixture")
+            self.assertEqual(set(data), {"battery"})
             expected = {"percentage": 73, "voltage_v": 51.45, "current_a": -0.26,
                         "power_w": 13.377, "temperature_c": 30.25,
-                        "remaining_capacity_mah": 3390, "cycle_count": 2, "status_bits": 4}
+                        "remaining_capacity_mah": 3390, "cycle_count": 2, "cycle_total_capacity_mah": 8625, "status_bits": 4}
             self.assertEqual({k: data["battery"][k] for k in expected}, expected)
             self.assertEqual(call("stop")["state"], "idle")
             time.sleep(0.6)

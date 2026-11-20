@@ -6,7 +6,7 @@ hardware_model: q1
 image_name: primebot-q1
 port: 15747
 mcp_url: "http://localhost:15747/mcp"
-description: 启元 Q1 探索版电池与运动模式状态
+description: 启元 Q1 探索版电池 SOC、电压、电流、功率、温度、容量与循环次数
 build_context_extras:
   - ../../common
 cards:

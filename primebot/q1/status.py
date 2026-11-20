@@ -19,7 +19,7 @@ class StatusCard:
         self.publisher = self.node.create_publisher(String, self.topic, 5)
         ros.executor_core.add_node(self.node)
         self.lock = Lock()
-        self.latest = {}
+        self.latest = None
         self.active = False
         # Fast DDS profiles are process-wide. Only the vendor reader uses the physical LAN.
         ctx = multiprocessing.get_context("spawn")
@@ -29,7 +29,7 @@ class StatusCard:
         self.timer = None
 
     def get_tool(self):
-        return tool("status", "sensor", "启元 Q1 电池与当前运动模式",
+        return tool("status", "sensor", "启元 Q1 电池：SOC、电压、电流、功率、温度、剩余容量与循环次数",
                     action_schema({"info": ([], "状态与数据话题"), "start": ([], "开始输出"),
                                    "stop": ([], "暂停输出"), "read": ([], "读取当前状态")}, {}),
                     topic_out=self.output)
@@ -56,19 +56,12 @@ class StatusCard:
             self.node.destroy_node()
 
     def snapshot(self):
-        now = time.monotonic()
-        result = {}
-        for name in ("battery", "motion"):
-            sample = self.latest.get(name)
-            if sample is None:
-                result[name] = {"state": "waiting"}
-            else:
-                stamp, values = sample
-                age = max(0, now - stamp)
-                state = "unavailable" if "error" in values else "live"
-                result[name] = {"state": state if age <= 5 else "stale",
-                                "age_s": round(age, 2), **values}
-        return result
+        if self.latest is None:
+            return {"battery": {"state": "waiting"}}
+        stamp, values = self.latest
+        age = max(0, time.monotonic() - stamp)
+        return {"battery": {"state": "live" if age <= 5 else "stale",
+                            "age_s": round(age, 2), **values}}
 
     def tick(self):
         with self.lock:
@@ -76,11 +69,10 @@ class StatusCard:
                 return
             while not self.receiver.closed and self.receiver.poll():
                 try:
-                    name, stamp, values = self.receiver.recv()
+                    self.latest = self.receiver.recv()
                 except EOFError:
                     self.receiver.close()
                     break
-                self.latest[name] = (stamp, values)
             if self.active:
                 self.publisher.publish(String(data=json.dumps(self.snapshot(), ensure_ascii=False)))
 
