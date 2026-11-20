@@ -70,6 +70,8 @@ class StatusTest(unittest.TestCase):
             vendor.destroy_node()
             canvas.destroy_node()
             ros.shutdown()
+            for thread in ros._threads:
+                thread.join()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,177 @@
+diff --git a/agent-core/web/css/style.css b/agent-core/web/css/style.css
+index 832bbb7..6695b52 100644
+--- a/agent-core/web/css/style.css
++++ b/agent-core/web/css/style.css
+@@ -9802,3 +9802,25 @@ html, body {
+ @media (max-width: 760px) {
+   .bm-tl-r { grid-template-columns: 1fr 52px 1fr; gap: 6px; }
+ }
++
++/* PrimeBot Q1 battery readout in canvas detail and monitor panels. */
++.q1-battery { width:100%; min-height:0; overflow:auto; padding:16px; color:var(--text); font-variant-numeric:tabular-nums; }
++.q1-battery header { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:var(--text-muted); }
++.q1-battery .q1-signal { color:var(--text-muted); }
++.q1-battery[data-state="live"] .q1-signal { color:var(--green); }
++.q1-battery[data-state="stale"] .q1-signal { color:var(--yellow); }
++.q1-signal::before { content:""; display:inline-block; width:6px; height:6px; margin-right:5px; background:currentColor; border-radius:50%; vertical-align:middle; }
++.q1-charge { display:flex; align-items:baseline; gap:4px; padding-top:3px; }
++.q1-charge strong { font-size:38px; font-weight:650; line-height:1.15; letter-spacing:-.04em; }
++.q1-charge span { font-size:16px; color:var(--text-muted); }
++.q1-battery progress { display:block; appearance:none; width:100%; height:5px; margin:9px 0 14px; border:0; border-radius:4px; overflow:hidden; color:var(--green); background:var(--bg-input); }
++.q1-battery progress::-webkit-progress-bar { background:var(--bg-input); }
++.q1-battery progress::-webkit-progress-value { background:currentColor; }
++.q1-battery progress::-moz-progress-bar { background:currentColor; }
++.q1-battery[data-state="stale"] progress { color:var(--text-dim); }
++.q1-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,96px),1fr)); gap:10px 14px; }
++.q1-metrics dt, .q1-metrics small { color:var(--text-muted); font-size:11px; }
++.q1-metrics dd { margin-top:2px; white-space:nowrap; }
++.q1-metrics dd b { font-size:17px; font-weight:600; }
++.q1-battery details { margin-top:14px; border-top:1px solid var(--border); }
++.q1-battery summary { cursor:pointer; font-size:12px; color:var(--text-muted); padding:9px 0; }
+diff --git a/agent-core/web/js/canvas.js b/agent-core/web/js/canvas.js
+index 234d0ba..0ff3ad6 100644
+--- a/agent-core/web/js/canvas.js
++++ b/agent-core/web/js/canvas.js
+@@ -11,6 +11,7 @@
+  * Cards: pointer-capture drag within viewport (world coords)
+  */
+ 
++import { Q1BatteryRenderer, q1BatteryTopic } from './renderers/q1-battery.js';
+ import { showToast } from './toast.js';
+ 
+ import { showTopicDetail } from './detail-panel.js';
+@@ -2884,7 +2885,7 @@ async function _executeCard(el, mcpId, toolName, instanceId) {
+         return;
+       }
+       const resultText = _formatCallResult(json.data);
+-      _showResult(el, resultText, false);
++      _showResult(el, resultText, false, _toolObj?.topic_out?.[0]?.topic);
+       // The panel can afford a 144-entry list; one log line cannot.
+       _logActivity('mcp_result', `${toolName} → ${_truncate(resultText, 400)}`);
+     } else {
+@@ -2945,7 +2946,7 @@ function _formatCallResult(data) {
+   return payload === undefined ? '' : JSON.stringify(payload, null, 2);
+ }
+ 
+-function _showResult(el, text, isError) {
++function _showResult(el, text, isError, topic) {
+   const existing = el.querySelector('.canvas-result');
+   if (existing) existing.remove();
+   const wrapper = document.createElement('div');
+@@ -2965,7 +2966,20 @@ function _showResult(el, text, isError) {
+       _selectElementText(pre);
+     }
+   });
+-  wrapper.appendChild(pre);
++  if (!isError && topic === q1BatteryTopic) {
++    let sample;
++    try { sample = JSON.parse(text)?.data?.battery; } catch { /* use plain result */ }
++    if (sample) {
++      const view = Object.create(Q1BatteryRenderer);
++      view.mount(wrapper);
++      view.renderSample(sample, false);
++      const raw = document.createElement('details');
++      const label = document.createElement('summary');
++      label.textContent = '原始 JSON';
++      raw.append(label, pre);
++      view.panel.appendChild(raw);
++    } else wrapper.appendChild(pre);
++  } else wrapper.appendChild(pre);
+   el.appendChild(wrapper);
+ }
+ 
+diff --git a/agent-core/web/js/dashboard.js b/agent-core/web/js/dashboard.js
+index dd6d1c5..ddf4bdb 100644
+--- a/agent-core/web/js/dashboard.js
++++ b/agent-core/web/js/dashboard.js
+@@ -3,6 +3,7 @@
+  * Manages skill sidebar, renderer selection, and activity log.
+  */
+ 
++import { Q1BatteryRenderer, q1BatteryTopic } from './renderers/q1-battery.js';
+ import { connectMotus, onMotusEvent, offMotusEvent } from './motus-stream.js';
+ import { ActivityRenderer } from './renderers/activity.js';
+ import { TextRenderer }     from './renderers/text.js';
+@@ -367,7 +368,8 @@ function mountRenderer(skill) {
+   }
+ 
+   const hint     = skill.render_hint || 'activity';
+-  const Renderer = RENDERERS.find(r => r.canRender(hint)) || ActivityRenderer;
++  const Renderer = skill.topic_out?.[0]?.topic === q1BatteryTopic ? Q1BatteryRenderer
++    : RENDERERS.find(r => r.canRender(hint)) || ActivityRenderer;
+ 
+   const topicIn  = skill.topic_in?.[0]  || null;
+   const topicOut = skill.topic_out?.[0] || null;
+diff --git a/agent-core/web/js/detail-panel.js b/agent-core/web/js/detail-panel.js
+index cf6e8c0..0fbf376 100644
+--- a/agent-core/web/js/detail-panel.js
++++ b/agent-core/web/js/detail-panel.js
+@@ -6,6 +6,7 @@
+  *  - Node:  shows MCP service info (tools, status, URL).
+  */
+ 
++import { Q1BatteryRenderer, q1BatteryTopic } from './renderers/q1-battery.js';
+ import { ActivityRenderer } from './renderers/activity.js';
+ import { TextRenderer }     from './renderers/text.js';
+ import { VideoRenderer }    from './renderers/video.js';
+@@ -100,8 +101,9 @@ export function showTopicDetail(topicPath, format) {
+   body.innerHTML = '';
+ 
+   const hint     = format || 'activity';
+-  const Renderer = RENDERERS.find(r => r.canRender(hint)) || ActivityRenderer;
+-  _textLike = Renderer === TextRenderer || Renderer === ActivityRenderer;
++  const Renderer = topicPath === q1BatteryTopic ? Q1BatteryRenderer
++    : RENDERERS.find(r => r.canRender(hint)) || ActivityRenderer;
++  _textLike = Renderer === TextRenderer || Renderer === ActivityRenderer || Renderer === Q1BatteryRenderer;
+ 
+   _renderer = Object.assign(Object.create(Object.getPrototypeOf(Renderer)), Renderer);
+   _renderer.mount(body, 'detail');
+diff --git a/agent-core/web/js/monitor-dashboard.js b/agent-core/web/js/monitor-dashboard.js
+index 637158d..62d722f 100644
+--- a/agent-core/web/js/monitor-dashboard.js
++++ b/agent-core/web/js/monitor-dashboard.js
+@@ -4,6 +4,7 @@
+  * drag to reposition, resize by snapping to cell boundaries.
+  */
+ 
++import { Q1BatteryRenderer, q1BatteryTopic } from './renderers/q1-battery.js';
+ import { ActivityRenderer } from './renderers/activity.js';
+ import { TextRenderer }     from './renderers/text.js';
+ import { VideoRenderer }    from './renderers/video.js';
+@@ -277,7 +278,7 @@ async function _fetchAndBuild() {
+       const col = Math.max(0, Math.min(_totalCols - colSpan, saved.col));
+       placed.push({ topicPath, col, row: saved.row, colSpan, rowSpan, mode: saved.mode || 'log' });
+     } else {
+-      fresh.push({ topicPath, colSpan, rowSpan, mode: 'log' });
++      fresh.push({ topicPath, colSpan, rowSpan, mode: topicPath === q1BatteryTopic ? 'kv' : 'log' });
+     }
+   }
+   // Saved positions can also collide with each other — a layout written before
+@@ -357,7 +358,7 @@ function _createCard(topicPath, format, status, col, row, colSpan, rowSpan, save
+   `;
+ 
+   const body = el.querySelector('.monitor-card-body');
+-  const renderer = _createRenderer(format, defaultMode);
++  const renderer = _createRenderer(format, defaultMode, topicPath);
+   renderer.mount(body, _topicMcpMap[topicPath] || 'dashboard');
+ 
+   const ws = _connectWs(topicPath, format, renderer);
+@@ -470,7 +471,7 @@ function _refreshRenderer(topicPath) {
+   const body = card.el.querySelector('.monitor-card-body');
+   card.renderer?.unmount?.();
+   body.innerHTML = '';
+-  const renderer = _createRenderer(card.format, card.mode);
++  const renderer = _createRenderer(card.format, card.mode, topicPath);
+   renderer.mount(body, _topicMcpMap[topicPath] || 'dashboard');
+   card.renderer = renderer;
+   // Re-wire WS. Optional: _connectWs returns null for a card whose topic is
+@@ -489,7 +490,8 @@ function _switchMode(topicPath, newMode, modeBtns) {
+   _saveLayout();
+ }
+ 
+-function _createRenderer(format, mode) {
++function _createRenderer(format, mode, topicPath) {
++  if (topicPath === q1BatteryTopic && mode === 'kv') return Object.create(Q1BatteryRenderer);
+   if (mode === 'kv') {
+     return Object.assign(Object.create(Object.getPrototypeOf(KvLatestRenderer)), KvLatestRenderer);
+   }
