@@ -11,6 +11,6 @@ WORKDIR /work
 COPY common/ common/
 COPY main.py status.py robot.py config.yaml primebot/q1/
 ENV PYTHONPATH=/work PYTHONUNBUFFERED=1 RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-EXPOSE 15747
+EXPOSE 15748
 ENTRYPOINT []
 CMD ["/bin/bash", "-c", "source /opt/ros/humble/setup.bash && source /q1_ws/install/setup.bash && exec /usr/bin/python3 /work/primebot/q1/main.py"]

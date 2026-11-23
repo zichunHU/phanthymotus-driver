@@ -46,6 +46,8 @@ def discovery(args):
             sock.bind((args.mac, port))
             selector.register(sock, selectors.EVENT_READ, port)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as forward:
+            # Darwin limits an outgoing datagram to the socket send buffer size.
+            forward.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65535)
             while True:
                 for key, _ in selector.select():
                     packet, source = key.fileobj.recvfrom(65535)

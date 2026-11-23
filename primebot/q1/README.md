@@ -4,6 +4,8 @@
 
 ![启元 Q1 电池状态面板](docs/电池状态面板.png)
 
+在自己的主机上部署时，将本驱动与 Motus Core 部署到同一 Linux 主机（或共享 Core 网络的容器），确保能订阅目标 Q1 的 BMS 话题。Core 通过主机网络中的 `http://localhost:15748/mcp` 访问驱动。Apple 芯片 Mac 使用 Docker Desktop 时，按[Mac 有线联调说明](docs/Mac联调.md)配置 DDS 回程，按本机实际地址和容器名称调整。
+
 ## 文件入口
 
 | 用途 | 文件 |
@@ -33,7 +35,7 @@
 
 ## 源码与集成
 
-驱动来自本地 `feat/primebot-q1-driver` 分支的 `0884f82c`。本目录已包含该版本构建所需的公共运行时和启元 `aimdk_msgs` 消息包，可直接作为 Docker 构建上下文。驱动主线见[个人 fork 的 Q1 driver 分支](https://github.com/zichunHU/phanthymotus-driver/tree/feat/primebot-q1-driver/primebot/q1)。[启元官方 SDK 指南](https://github.com/PrimebotTech/primebot-q1-sdk/blob/main/docs/zh/SDK快速入门与集成指南.md)
+驱动来自本地 `feat/primebot-q1-driver` 分支的 `5f334ce2`。本目录已包含该版本构建所需的公共运行时和启元 `aimdk_msgs` 消息包，可直接作为 Docker 构建上下文。驱动主线见[个人 fork 的 Q1 driver 分支](https://github.com/zichunHU/phanthymotus-driver/tree/feat/primebot-q1-driver/primebot/q1)。[启元官方 SDK 指南](https://github.com/PrimebotTech/primebot-q1-sdk/blob/main/docs/zh/SDK快速入门与集成指南.md)
 
 本机 Core 已集成电池面板。面板对应 Core 分支 `feat/primebot-q1-status-view` 的 `54eb2a9`。在其他基于 `56edda4` 的 Core checkout 中复用时，从本卡片目录设置 `CARD_DIR="$PWD"`，切到目标 Core 根目录后执行：
 
